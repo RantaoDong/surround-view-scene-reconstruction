@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+
+sample_data/bev_sequence/*
+!sample_data/bev_sequence/.gitkeep
+
+outputs/filled/*
+!outputs/filled/.gitkeep

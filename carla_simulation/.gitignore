@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+
+outputs/raw/*
+!outputs/raw/.gitkeep
+outputs/surround/*
+!outputs/surround/.gitkeep
+outputs/transparent/*
+!outputs/transparent/.gitkeep
+
