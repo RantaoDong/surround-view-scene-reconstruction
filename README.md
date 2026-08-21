@@ -1,16 +1,16 @@
 # Surround-View Scene Reconstruction for Parking Assistance
 
-An undergraduate thesis project on panoramic perception and hidden-road reconstruction for an automotive surround-view parking assistance system. The cleaned portfolio repository is organized into three modules that match the project directories:
+An undergraduate thesis project on panoramic perception and hidden-road reconstruction for an automotive surround-view parking assistance system. The repository is organized into three modules that match the project directories:
 
 1. `calibration/` — real-camera calibration, bird's-eye-view transformation, and four-camera stitching
 2. `opticalflow/` — temporal road-surface reconstruction from real-camera BEV sequences
 3. `carla_simulation/` — surround-view and transparent-vehicle validation in CARLA
 
-<p align="center">
+<!-- <p align="center">
   <img src="assets/images/calibration/surround_view_balanced.jpg"
        width="420"
        alt="Final real-camera surround-view result">
-</p>
+</p> -->
 
 ## Project Workflow
 
