@@ -1,6 +1,10 @@
 # Surround-View Scene Reconstruction for Parking Assistance
 
-An undergraduate thesis project on panoramic perception and hidden-road reconstruction for an automotive surround-view parking assistance system. The project covers fisheye camera calibration, bird's-eye-view transformation, four-camera stitching, optical-flow-based transparent under-vehicle reconstruction, and validation with both CARLA simulation and real-camera data.
+An undergraduate thesis project on panoramic perception and hidden-road reconstruction for an automotive surround-view parking assistance system. The cleaned portfolio repository is organized into three modules that match the project directories:
+
+1. `calibration/` — real-camera calibration, bird's-eye-view transformation, and four-camera stitching
+2. `opticalflow/` — temporal road-surface reconstruction from real-camera BEV sequences
+3. `carla_simulation/` — surround-view and transparent-vehicle validation in CARLA
 
 <p align="center">
   <img src="assets/images/calibration/surround_view_balanced.jpg"
@@ -8,58 +12,65 @@ An undergraduate thesis project on panoramic perception and hidden-road reconstr
        alt="Final real-camera surround-view result">
 </p>
 
-## Technical Route
-
-The repository follows the four-stage technical route presented in the thesis defense:
+## Project Workflow
 
 ```text
-1. Fisheye camera calibration and distortion correction
-   Zhang's checkerboard calibration
-   → polynomial fisheye distortion model
-   → undistorted camera images
+Real-camera pipeline
+Fisheye images
+-> intrinsic calibration and undistortion
+-> ground-plane perspective transformation
+-> masking, exposure compensation, and overlap blending
+-> stitched bird's-eye view
+-> optical-flow alignment of historical frames
+-> reconstructed road surface beneath the vehicle
 
-2. Bird's-eye-view transformation and surround-view processing
-   Perspective transformation
-   → directional masking, stitching, and exposure compensation
-   → vehicle-centered two-dimensional surround view
-
-3. Transparent under-vehicle reconstruction
-   Shi–Tomasi feature detection and pyramidal LK optical flow
-   → inter-frame affine motion estimation
-   → historical BEV alignment and region recovery
-   → reconstructed road surface beneath the vehicle
-
-4. Simulation validation and real-camera experiments
-   CARLA environment and synchronized four-camera acquisition
-   → online algorithm evaluation
-   → real-camera dataset processing and result analysis
+Simulation pipeline
+Synchronized CARLA cameras
+-> camera alignment and surround-view stitching
+-> inter-frame motion estimation
+-> historical BEV alignment
+-> transparent-vehicle reconstruction
 ```
 
-The first two stages are implemented in [`calibration/`](calibration/), the temporal reconstruction stage is implemented in [`opticalflow/`](opticalflow/), and the simulation branch is implemented in [`carla_simulation/`](carla_simulation/).
+The real-camera processing is divided between `calibration/` and `opticalflow/`. The CARLA module is a separate simulation and validation path rather than the source of the real-camera data.
 
-## Stage 1 — Fisheye Calibration and Distortion Correction
+## 1. Camera Calibration and Surround-View Generation
 
-Four fisheye cameras provide front, rear, left, and right views. Intrinsic calibration estimates the camera matrix `K` and distortion coefficients `D`; the retained parameters are then used to generate undistorted views.
+The [`calibration/`](calibration/) module contains the complete real-camera preprocessing pipeline. Four fisheye cameras provide front, rear, left, and right views. Intrinsic calibration estimates the camera matrix `K` and distortion coefficients `D`, while a reference bird's-eye image is used to estimate the homography `H` for each camera.
+
+### Calibration and undistortion
 
 | Raw fisheye inputs | Undistorted views |
 |---|---|
 | <img src="assets/images/calibration/raw.jpg" alt="Four raw fisheye images"> | <img src="assets/images/calibration/undistorted.jpg" alt="Four undistorted images"> |
 
-The module supports both pinhole and fisheye calibration models. The cleaned repository retains final NPY parameters together with human-readable OpenCV YAML copies.
+The module supports pinhole and fisheye intrinsic calibration. The public version retains the final NPY parameters used by the scripts and matching human-readable OpenCV YAML files. A complete original chessboard dataset is not included.
 
-## Stage 2 — BEV Transformation and Surround-View Stitching
+### BEV transformation and stitching
 
-Each undistorted image is projected into a shared ground-plane coordinate system with a homography `H`. Directional masks select valid regions from the four projected views. Adaptive exposure compensation reduces brightness differences, and distance-weighted feathering blends camera overlaps.
+Each undistorted image is projected into a shared ground-plane coordinate system. Directional masks select valid regions, adaptive exposure compensation reduces brightness differences, and distance-weighted feathering blends camera overlaps.
 
 | Four projected BEV views | Exposure-compensated surround view |
 |---|---|
 | <img src="assets/images/calibration/birdeye.jpg" alt="Four BEV projections"> | <img src="assets/images/calibration/surround_view_balanced.jpg" alt="Exposure-compensated surround view"> |
 
-The black center region represents the area hidden by the vehicle and is the target of the temporal reconstruction stage.
+The black center region represents the road area hidden by the vehicle. This stitched BEV is the input expected by the optical-flow module.
 
-## Stage 3 — Optical-Flow Transparent Under-Vehicle Reconstruction
+### Real-vehicle acquisition interface
 
-The reconstruction module samples a BEV sequence, tracks Shi–Tomasi features with pyramidal Lucas–Kanade optical flow, estimates inter-frame motion, aligns historical road content, and fills the current missing region.
+<p align="center">
+  <img src="assets/images/calibration/real-vehicle-collection-interface.jpg"
+       width="1000"
+       alt="Real-vehicle four-camera collection and surround-view interface">
+</p>
+
+This interface shows the four physical camera streams and generated surround view running on the original Ubuntu vehicle platform. It is a real-vehicle data-acquisition interface, not CARLA.
+
+See the [calibration module documentation](calibration/README.md) for parameter files, exposure compensation, blending, recalibration, and execution details.
+
+## 2. Optical-Flow Road Reconstruction
+
+The [`opticalflow/`](opticalflow/) module processes a time-ordered sequence of stitched real-camera BEV images. It samples one frame every six source frames, tracks Shi–Tomasi features with pyramidal Lucas–Kanade optical flow, estimates affine motion, aligns the previous reconstructed result, and fills the missing road region in the current frame.
 
 <p align="center">
   <img src="assets/images/optical-flow/opticalflow.jpg"
@@ -75,11 +86,13 @@ The following sequence illustrates recovered road content as the vehicle moves t
        alt="Real-camera transparent under-vehicle sequence">
 </p>
 
-Motion is estimated from original sampled frames, while the previous recovered result carries road information forward through the sequence. Missing-region selection can use either a dark-pixel mask or a fixed center region.
+Motion is estimated only from original sampled frames so that recovered pixels do not affect feature tracking. The previous sampled output carries historical road information forward through the sequence. Missing-region selection supports either dark-pixel detection or a fixed center region.
 
-## Stage 4 — CARLA Validation and Real-Camera Experiments
+See the [optical-flow module documentation](opticalflow/README.md) for input naming, frame sampling, region selection, and command-line options.
 
-The CARLA branch creates a vehicle-mounted four-camera rig and collects synchronized views in a controllable environment. It reproduces the surround-view and temporal reconstruction pipeline without requiring access to the original vehicle platform.
+## 3. CARLA Surround-View Simulation
+
+The [`carla_simulation/`](carla_simulation/) module is an independent simulation branch. It creates a vehicle-mounted four-camera rig, synchronizes the sensors, generates an online surround-view image, and aligns historical BEV content to reconstruct the central vehicle region.
 
 | CARLA vehicle environment | Four camera views |
 |---|---|
@@ -89,7 +102,7 @@ The CARLA branch creates a vehicle-mounted four-camera rig and collects synchron
 |---|---|
 | <img src="assets/images/carla-simulation/carlabirdeye.jpg" alt="Four projected CARLA camera views"> | <img src="assets/images/carla-simulation/carlasurroundview.jpg" alt="CARLA surround-view result"> |
 
-The transparent-view experiment accumulates inter-frame transformations and aligns historical BEV content with the current vehicle region:
+The transparent-view experiment accumulates inter-frame transformations and aligns historical content with the current vehicle region:
 
 <p align="center">
   <img src="assets/images/carla-simulation/carlatransparent.png"
@@ -97,42 +110,37 @@ The transparent-view experiment accumulates inter-frame transformations and alig
        alt="CARLA transparent-view sequence">
 </p>
 
-The real-vehicle experiment interface shows the four physical camera streams and the generated surround view running together on the original Ubuntu platform:
+This path uses large-FOV RGB cameras directed toward the ground. It does not use the fisheye parameters or homographies from the real-camera calibration module.
 
-<p align="center">
-  <img src="assets/images/calibration/real-vehicle-collection-interface.jpg"
-       width="1000"
-       alt="Real-vehicle four-camera collection and surround-view interface">
-</p>
-
-Real-camera experiments use the retained calibration parameters and sample fisheye images shown in Stages 1–3. The interface above is from the real-vehicle acquisition system, not CARLA. Large original datasets and generated frame sequences are excluded from Git.
+See the [CARLA module documentation](carla_simulation/README.md) for the camera setup, synchronization, runtime commands, and implementation limitations.
 
 ## Repository Structure
 
 ```text
 .
-├── calibration/                    # Stages 1–2: calibration and stitching
-├── opticalflow/                    # Stage 3: temporal BEV reconstruction
-├── carla_simulation/               # Stage 4: simulation and online validation
+├── calibration/                    # Real-camera calibration and stitching
+├── opticalflow/                    # Real-camera temporal BEV reconstruction
+├── carla_simulation/               # CARLA simulation and validation
 ├── requirements/
 │   ├── base.txt                    # NumPy and OpenCV
 │   └── carla.txt                   # Base dependencies and Pygame
 ├── assets/
 │   └── images/                     # Selected presentation results
+├── LICENSE
 └── README.md
 ```
 
 | Module | Main responsibilities | Documentation |
 |---|---|---|
-| Camera calibration | Estimate K, D, and H; undistort images; project BEV views; compensate exposure; blend and stitch | [Calibration documentation](calibration/README.md) |
-| Optical-flow inpainting | Sample BEV frames; estimate motion; align history; recover dark or center regions | [Optical-flow documentation](opticalflow/README.md) |
-| CARLA simulation | Create the camera rig; synchronize sensors; generate online standard and transparent BEV results | [CARLA documentation](carla_simulation/README.md) |
+| `calibration` | Estimate `K`, `D`, and `H`; undistort images; project BEV views; compensate exposure; blend and stitch | [README](calibration/README.md) |
+| `opticalflow` | Sample real-camera BEV frames; estimate motion; align history; recover the hidden road region | [README](opticalflow/README.md) |
+| `carla_simulation` | Create the simulated camera rig; synchronize sensors; generate standard and transparent BEV results | [README](carla_simulation/README.md) |
 
 ## Installation
 
 Python 3.8 or later is recommended.
 
-Install the calibration and optical-flow dependencies:
+Install dependencies for the real-camera calibration and optical-flow modules:
 
 ```bash
 python -m pip install -r requirements/base.txt
@@ -148,14 +156,14 @@ The CARLA Python API is not bundled with this repository. It must match the CARL
 
 ## Quick Start
 
-Generate the real-camera surround view:
+Generate a surround view from the included real-camera examples:
 
 ```bash
 cd calibration
 python generate_surround_view.py
 ```
 
-Process a local BEV sequence with optical-flow inpainting:
+Process a local stitched-BEV sequence with optical-flow reconstruction:
 
 ```bash
 cd opticalflow
@@ -176,7 +184,7 @@ Detailed parameters and additional commands are documented in each module README
 - The calibration module retains final camera parameters and a compact real-camera example set.
 - Optical-flow source sequences and generated outputs remain local and are excluded from Git.
 - CARLA raw frames and generated output sequences are excluded from Git.
-- The images under `assets/` are selected presentation results rather than runtime dependencies.
+- Images under `assets/` are selected presentation results rather than runtime dependencies.
 - CARLA and the original Ubuntu environment are not required to inspect the implementation.
 
 ## Limitations
@@ -184,8 +192,8 @@ Detailed parameters and additional commands are documented in each module README
 - Calibration parameters are tied to the original cameras, mounting geometry, and image resolution.
 - Temporal reconstruction assumes a mostly planar, static road surface.
 - Dynamic objects and non-planar structures can introduce optical-flow errors.
-- The CARLA path uses large-FOV RGB cameras aimed directly at the ground rather than a strict fisheye camera model.
-- The real-camera and CARLA branches are related validation paths, not one fully automated cross-platform runtime.
+- The CARLA branch uses large-FOV perspective RGB cameras rather than a strict fisheye camera model.
+- The real-camera and CARLA branches are related experiments, not one fully automated cross-platform runtime.
 
 ## Project Background
 
